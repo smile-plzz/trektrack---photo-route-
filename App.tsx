@@ -2,10 +2,10 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { 
   Upload, Trash2, Info, Compass, 
-  Footprints, Mountain, Map as MapIcon, 
-  Calendar, Download, RotateCcw, MapPin, 
+  Footprints, Mountain,
+  Calendar, Download, MapPin, 
   ChevronRight, Activity, Image as ImageIcon,
-  Clock, Box, Sun, Moon, X, Target, Zap, 
+  Box, Sun, Moon, Zap, AlertTriangle, CheckCircle,
   Trash
 } from 'lucide-react';
 import { TrekPhoto } from './types';
@@ -13,7 +13,25 @@ import { extractGpsData, extractCameraMetadata, fileToBase64 } from './services/
 import Map from './components/Map';
 import ElevationProfile from './components/ElevationProfile';
 import Gallery from './components/Gallery';
-import heic2any from 'https://esm.sh/heic2any';
+import heic2any from 'heic2any';
+
+const escapeXml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+const isSupportedImage = (file: File) => {
+  const name = file.name.toLowerCase();
+  return file.type.startsWith('image/') || name.endsWith('.heic') || name.endsWith('.heif');
+};
+
+const createPhotoId = () => {
+  if ('crypto' in window && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
 
 const App: React.FC = () => {
   const [photos, setPhotos] = useState<TrekPhoto[]>([]);
@@ -23,8 +41,16 @@ const App: React.FC = () => {
   const [isConverting, setIsConverting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
-  
-  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [uploadFeedback, setUploadFeedback] = useState<{ text: string; tone: 'success' | 'warning' }>();
+  const latestPhotosRef = useRef<TrekPhoto[]>([]);
+
+  const sortedPhotos = useMemo(() => {
+    return [...photos].sort((a, b) => {
+      return (a.location?.timestamp?.getTime() || 0) - (b.location?.timestamp?.getTime() || 0);
+    });
+  }, [photos]);
+
+  const geotaggedCount = useMemo(() => photos.filter(p => p.location).length, [photos]);
 
   // Sync dark mode class and ensure it's robust
   useEffect(() => {
@@ -50,16 +76,28 @@ const App: React.FC = () => {
     return () => window.removeEventListener('trek-open-gallery', handleOpenGallery);
   }, [photos]);
 
+  useEffect(() => {
+    latestPhotosRef.current = photos;
+  }, [photos]);
+
+  useEffect(() => () => {
+    latestPhotosRef.current.forEach(p => URL.revokeObjectURL(p.url));
+  }, []);
+
   const processFiles = async (files: File[]) => {
-    if (files.length === 0) return;
+    const supportedFiles = files.filter(isSupportedImage);
+    if (supportedFiles.length === 0) {
+      setUploadFeedback({ text: 'No supported image files found.', tone: 'warning' });
+      return;
+    }
+
     setIsConverting(true);
+    setUploadFeedback(undefined);
     
-    // FAST PROCESSING: Parallel execution using Promise.all
-    const processPromises = files.map(async (file) => {
+    const processPromises = supportedFiles.map(async (file) => {
       const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
       
       try {
-        // Extracting metadata and converting HEIC concurrently
         const [location, camera, displayBlob] = await Promise.all([
           extractGpsData(file),
           extractCameraMetadata(file),
@@ -69,15 +107,11 @@ const App: React.FC = () => {
         const finalBlob = Array.isArray(displayBlob) ? displayBlob[0] : displayBlob;
         const finalMimeType = isHeic ? 'image/jpeg' : file.type;
 
-        // Base64 and Object URL creation
-        const [base64] = await Promise.all([
-          fileToBase64(finalBlob as File)
-        ]);
-        
+        const base64 = await fileToBase64(finalBlob as Blob);
         const objectUrl = URL.createObjectURL(finalBlob as Blob);
         
         return {
-          id: Math.random().toString(36).substr(2, 9),
+          id: createPhotoId(),
           name: file.name,
           url: objectUrl,
           base64,
@@ -91,16 +125,34 @@ const App: React.FC = () => {
       }
     });
 
-    const results = await Promise.all(processPromises);
-    const validNewPhotos = results.filter((p): p is TrekPhoto => p !== null);
-    
-    setPhotos(prev => [...prev, ...validNewPhotos]);
-    setIsConverting(false);
+    try {
+      const results = await Promise.all(processPromises);
+      const validNewPhotos = results.filter((p): p is TrekPhoto => p !== null);
+      const skipped = files.length - supportedFiles.length;
+      const failed = supportedFiles.length - validNewPhotos.length;
+
+      if (validNewPhotos.length > 0) {
+        setPhotos(prev => [...prev, ...validNewPhotos]);
+      }
+
+      const notes = [
+        validNewPhotos.length ? `${validNewPhotos.length} imported` : '',
+        failed ? `${failed} failed` : '',
+        skipped ? `${skipped} skipped` : ''
+      ].filter(Boolean);
+      setUploadFeedback(notes.length ? {
+        text: notes.join(', ') + '.',
+        tone: failed || skipped ? 'warning' : 'success'
+      } : undefined);
+    } finally {
+      setIsConverting(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     processFiles(files);
+    e.target.value = '';
   };
 
   const deletePhoto = (id: string, e: React.MouseEvent) => {
@@ -124,12 +176,6 @@ const App: React.FC = () => {
       setIsGalleryOpen(false);
       setGalleryIndex(0);
     }
-  }, [photos]);
-
-  const sortedPhotos = useMemo(() => {
-    return [...photos].sort((a, b) => {
-      return (a.location?.timestamp?.getTime() || 0) - (b.location?.timestamp?.getTime() || 0);
-    });
   }, [photos]);
 
   const stats = useMemo(() => {
@@ -171,9 +217,9 @@ const App: React.FC = () => {
     validPhotos.forEach(p => {
       gpx += `
       <trkpt lat="${p.location!.lat}" lon="${p.location!.lng}">
-        ${p.location!.alt ? `<ele>${p.location!.alt}</ele>` : ''}
+        ${p.location!.alt !== undefined ? `<ele>${p.location!.alt}</ele>` : ''}
         ${p.location!.timestamp ? `<time>${p.location!.timestamp.toISOString()}</time>` : ''}
-        <name>${p.name.replace(/&/g, '&amp;')}</name>
+        <name>${escapeXml(p.name)}</name>
       </trkpt>`;
     });
     
@@ -193,31 +239,31 @@ const App: React.FC = () => {
       
       {/* Enhanced Drag Overlay */}
       {isDragging && (
-        <div className="fixed inset-0 z-[100] bg-emerald-500/10 dark:bg-emerald-500/20 backdrop-blur-xl border-[12px] border-dashed border-emerald-500 flex items-center justify-center pointer-events-none">
-          <div className="bg-white dark:bg-slate-900 p-20 rounded-[4rem] shadow-2xl flex flex-col items-center gap-6 transform animate-in zoom-in-95 border border-emerald-500/30">
-            <div className="p-8 bg-emerald-500 rounded-full text-white shadow-2xl shadow-emerald-500/40 animate-bounce">
-               <Upload size={80} strokeWidth={2.5}/>
+        <div className="fixed inset-0 z-[100] bg-emerald-500/10 dark:bg-emerald-500/20 backdrop-blur-xl border-[10px] border-dashed border-emerald-500 flex items-center justify-center pointer-events-none">
+          <div className="bg-white dark:bg-slate-900 p-12 sm:p-16 rounded-[2rem] shadow-2xl flex flex-col items-center gap-5 transform animate-in zoom-in-95 border border-emerald-500/30">
+            <div className="p-6 bg-emerald-500 rounded-full text-white shadow-2xl shadow-emerald-500/40 animate-bounce">
+               <Upload size={56} strokeWidth={2.5}/>
             </div>
-            <p className="text-4xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Import Waypoints</p>
+            <p className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Drop Photos</p>
           </div>
         </div>
       )}
 
       <aside 
-        className="w-full lg:w-[460px] flex flex-col h-[45vh] lg:h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] z-20 shadow-2xl transition-all"
+        className="w-full lg:w-[460px] flex flex-col h-[52vh] lg:h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] z-20 shadow-2xl transition-all"
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={(e) => { e.preventDefault(); setIsDragging(false); processFiles(Array.from(e.dataTransfer.files)); }}
       >
-        <header className="p-8 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-2xl z-30">
-          <div className="flex items-center justify-between mb-8">
+        <header className="p-5 sm:p-8 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-2xl z-30">
+          <div className="flex items-center justify-between mb-5 sm:mb-8">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-emerald-500 rounded-2xl text-white shadow-lg shadow-emerald-500/20 rotate-3 transition-transform hover:rotate-0">
                 <Compass size={24}/>
               </div>
               <div>
                 <h1 className="text-2xl font-black tracking-tighter leading-none mb-1">TrekTrack</h1>
-                <p className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Digital Expedition Log</p>
+                <p className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Photo Route Mapper</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -231,31 +277,42 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <label className={`group relative flex flex-col items-center justify-center gap-4 w-full p-8 rounded-[2.5rem] border-2 border-dashed transition-all cursor-pointer ${isConverting ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 cursor-wait' : 'bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/30 dark:hover:bg-emerald-500/5'}`}>
+          <label className={`group relative flex flex-col items-center justify-center gap-4 w-full p-6 sm:p-8 rounded-[1.75rem] border-2 border-dashed transition-all cursor-pointer ${isConverting ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 cursor-wait' : 'bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/30 dark:hover:bg-emerald-500/5'}`}>
             <div className={`p-4 rounded-2xl transition-all ${isConverting ? 'bg-slate-200 dark:bg-slate-700 text-slate-400' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white'}`}>
               {isConverting ? <Activity className="animate-spin" size={28}/> : <Upload size={28}/>}
             </div>
             <div className="text-center">
-              <span className="block font-black text-base">{isConverting ? 'Decoding EXIF...' : 'Deploy Journey Assets'}</span>
+              <span className="block font-black text-base">{isConverting ? 'Reading photo metadata...' : 'Add Trek Photos'}</span>
               <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 flex items-center justify-center gap-2">
-                <Zap size={10} className="text-amber-500"/> Multi-thread Processing
+                <Zap size={10} className="text-amber-500"/> GPS EXIF, HEIC and JPEG
               </span>
             </div>
             {!isConverting && <input type="file" multiple accept="image/*,.heic,.heif" onChange={handleFileUpload} className="hidden" />}
           </label>
+
+          {uploadFeedback && (
+            <div className={`mt-4 flex items-center gap-2 rounded-2xl px-4 py-3 text-[11px] font-bold ${
+              uploadFeedback.tone === 'success'
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+            }`}>
+              {uploadFeedback.tone === 'success' ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
+              <span>{uploadFeedback.text}</span>
+            </div>
+          )}
         </header>
 
-        <div className="flex-1 p-8 space-y-10 overflow-y-auto no-scrollbar">
+        <div className="flex-1 p-5 sm:p-8 space-y-8 sm:space-y-10 overflow-y-auto no-scrollbar">
           {stats && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-50 dark:bg-slate-800/40 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 transition-all hover:border-emerald-500/20 group">
+	                <div className="bg-slate-50 dark:bg-slate-800/40 p-5 sm:p-6 rounded-[1.5rem] border border-slate-100 dark:border-slate-800/50 transition-all hover:border-emerald-500/20 group">
                   <div className="flex items-center gap-2 text-emerald-500 mb-2 group-hover:scale-110 origin-left transition-transform"><Footprints size={14}/><span className="text-[10px] font-black uppercase tracking-tighter">Distance</span></div>
                   <div className="text-3xl font-black tracking-tight">{stats.distance} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">km</span></div>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-800/40 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 transition-all hover:border-amber-500/20 group">
+	                <div className="bg-slate-50 dark:bg-slate-800/40 p-5 sm:p-6 rounded-[1.5rem] border border-slate-100 dark:border-slate-800/50 transition-all hover:border-amber-500/20 group">
                   <div className="flex items-center gap-2 text-amber-500 mb-2 group-hover:scale-110 origin-left transition-transform"><Mountain size={14}/><span className="text-[10px] font-black uppercase tracking-tighter">Elevation</span></div>
-                  <div className="text-3xl font-black tracking-tight">{stats.maxAlt || '--'} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">m</span></div>
+                  <div className="text-3xl font-black tracking-tight">{stats.maxAlt ?? '--'} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">m</span></div>
                 </div>
               </div>
               <ElevationProfile photos={photos} activePhotoId={activePhotoId} onHover={setActivePhotoId} />
@@ -265,16 +322,17 @@ const App: React.FC = () => {
           <div className="space-y-6">
             <div className="flex items-center justify-between sticky top-0 bg-white dark:bg-[#0f172a] py-3 z-10 border-b border-transparent dark:border-white/5">
               <div className="flex flex-col">
-                <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Expedition Waypoints</h3>
-                <span className="text-[9px] font-bold text-emerald-500 uppercase">{photos.length} Captured Logs</span>
+	                <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Photo Waypoints</h3>
+	                <span className="text-[9px] font-bold text-emerald-500 uppercase">{geotaggedCount} mapped of {photos.length}</span>
               </div>
               <div className="flex gap-2">
                 {photos.length > 0 && (
                   <>
-                    <button 
-                      onClick={exportGPX}
-                      title="Export GPX Route"
-                      className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all active:scale-95"
+	                    <button 
+	                      onClick={exportGPX}
+                          disabled={geotaggedCount === 0}
+	                      title="Export GPX Route"
+	                      className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Download size={18}/>
                     </button>
@@ -285,8 +343,8 @@ const App: React.FC = () => {
                     >
                       <Trash size={18} className="group-hover/clear:rotate-12 transition-transform"/>
                     </button>
-                    <button onClick={() => setIsGalleryOpen(true)} className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white text-[10px] font-black rounded-full hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest active:scale-95">
-                      <ImageIcon size={16}/> Archive
+                    <button onClick={() => setIsGalleryOpen(true)} className="flex items-center gap-2 px-5 py-3 bg-emerald-500 text-white text-[10px] font-black rounded-2xl hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest active:scale-95">
+                      <ImageIcon size={16}/> Gallery
                     </button>
                   </>
                 )}
@@ -297,7 +355,7 @@ const App: React.FC = () => {
               {sortedPhotos.map((photo, idx) => (
                 <div 
                   key={photo.id}
-                  className={`group relative flex items-center gap-5 p-5 rounded-[2rem] border-2 transition-all cursor-pointer ${activePhotoId === photo.id ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10 shadow-2xl shadow-emerald-500/10' : 'border-slate-50 dark:border-slate-800/30 hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                  className={`group relative flex items-center gap-4 sm:gap-5 p-4 sm:p-5 rounded-[1.5rem] border-2 transition-all cursor-pointer ${activePhotoId === photo.id ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10 shadow-2xl shadow-emerald-500/10' : 'border-slate-50 dark:border-slate-800/30 hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
                   onClick={() => {
                     setActivePhotoId(photo.id);
                     if (activePhotoId === photo.id) { setGalleryIndex(idx); setIsGalleryOpen(true); }
@@ -313,7 +371,7 @@ const App: React.FC = () => {
                     <p className="text-sm font-black truncate mb-1 dark:text-slate-100">{photo.name}</p>
                     <div className="flex items-center gap-4 text-slate-400 dark:text-slate-500">
                       <div className="flex items-center gap-1.5 text-[10px] font-bold"><Calendar size={12}/> {photo.location?.timestamp?.toLocaleDateString() || '--'}</div>
-                      {photo.location?.alt && <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500"><Mountain size={12}/> {Math.round(photo.location.alt)}m</div>}
+                      {photo.location?.alt !== undefined && <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500"><Mountain size={12}/> {Math.round(photo.location.alt)}m</div>}
                     </div>
                   </div>
                   <div className="flex flex-col items-center gap-3">
@@ -334,8 +392,8 @@ const App: React.FC = () => {
                   <div className="w-28 h-28 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-10 border border-slate-100 dark:border-slate-800 transition-all group-hover:scale-110 group-hover:rotate-6">
                     <Box size={48} className="text-slate-200 dark:text-slate-700" />
                   </div>
-                  <h4 className="text-xl font-black mb-3 uppercase tracking-tight dark:text-slate-100">Expedition Zero</h4>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-[0.25em] max-w-[240px] leading-relaxed">Awaiting mission assets with GPS telemetry to map your trail</p>
+	                  <h4 className="text-xl font-black mb-3 uppercase tracking-tight dark:text-slate-100">No Photos Yet</h4>
+	                  <p className="text-[11px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-[0.18em] max-w-[260px] leading-relaxed">Add geotagged photos to draw your route and elevation profile</p>
                 </div>
               )}
             </div>
@@ -347,15 +405,15 @@ const App: React.FC = () => {
         <Map photos={photos} activePhotoId={activePhotoId} onPhotoSelect={setActivePhotoId} />
         
         {/* HUD Overlay */}
-        <div className="absolute top-10 left-10 flex flex-col gap-6 z-20 pointer-events-none lg:max-w-sm">
-          <div className="p-8 bg-white/95 dark:bg-slate-900/95 backdrop-blur-3xl rounded-[3rem] shadow-2xl border border-white/50 dark:border-slate-800/50 pointer-events-auto transition-all hover:scale-[1.02] group">
+        <div className="absolute left-4 right-4 top-4 lg:left-10 lg:right-auto lg:top-10 flex flex-col gap-6 z-20 pointer-events-none lg:max-w-sm">
+          <div className="p-5 lg:p-8 bg-white/95 dark:bg-slate-900/95 backdrop-blur-3xl rounded-[1.75rem] shadow-2xl border border-white/50 dark:border-slate-800/50 pointer-events-auto transition-all hover:scale-[1.02] group">
             <div className="flex items-center gap-4 mb-5">
               <div className="p-3 bg-emerald-500 rounded-2xl text-white shadow-xl group-hover:rotate-12 transition-transform"><Info size={22}/></div>
-              <span className="text-sm font-black uppercase tracking-[0.3em] dark:text-slate-100">Expedition HUD</span>
+              <span className="text-sm font-black uppercase tracking-[0.2em] dark:text-slate-100">Route Summary</span>
             </div>
             <p className="text-[12px] text-slate-500 dark:text-slate-400 leading-relaxed font-bold uppercase tracking-tight">
-              Tracking <span className="text-slate-900 dark:text-emerald-400 font-black">{photos.filter(p => p.location).length} Active Nodes</span>. 
-              {stats ? ` Analyzing ${stats.distance}km of trail topology across the spatial grid.` : " Awaiting waypoint deployment."}
+              Tracking <span className="text-slate-900 dark:text-emerald-400 font-black">{geotaggedCount} mapped photos</span>. 
+              {stats ? ` Route distance is ${stats.distance}km.` : " Add at least two GPS photos to calculate distance."}
             </p>
           </div>
         </div>

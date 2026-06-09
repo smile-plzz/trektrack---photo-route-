@@ -1,7 +1,4 @@
 {
   "name": "TrekTrack - Photo Route Journey",
-  "description": "Visualize your trekking routes by extracting GPS metadata from your photos. Experience your journey through interactive maps and elevation stats.",
-  "requestFramePermissions": [
-    "geolocation"
-  ]
+  "description": "Visualize trekking routes by extracting GPS metadata from uploaded photos, reviewing the route on an interactive map, and exporting GPX."
 }
