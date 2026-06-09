@@ -5,7 +5,7 @@ import {
   Footprints, Mountain,
   Calendar, Download, MapPin, 
   ChevronRight, Activity, Image as ImageIcon,
-  Box, Sun, Moon, Zap, AlertTriangle, CheckCircle,
+  Box, Sun, Moon, AlertTriangle, CheckCircle,
   Trash
 } from 'lucide-react';
 import { TrekPhoto } from './types';
@@ -48,7 +48,7 @@ const App: React.FC = () => {
     return [...photos].sort((a, b) => {
       return (a.location?.timestamp?.getTime() || 0) - (b.location?.timestamp?.getTime() || 0);
     });
-  }, [photos]);
+  }, [sortedPhotos]);
 
   const geotaggedCount = useMemo(() => photos.filter(p => p.location).length, [photos]);
 
@@ -120,7 +120,7 @@ const App: React.FC = () => {
           mimeType: finalMimeType
         } as TrekPhoto;
       } catch (err) {
-        console.error("Failed to process asset:", file.name, err);
+        console.error("Failed to process photo:", file.name, err);
         return null;
       }
     });
@@ -166,8 +166,7 @@ const App: React.FC = () => {
   };
 
   const handleClearAll = useCallback(() => {
-    if (window.confirm("Permanently wipe all expedition waypoints and data?")) {
-      // Vital: Clean up memory
+    if (window.confirm("Remove all photos and route data?")) {
       photos.forEach(p => {
         if (p.url) URL.revokeObjectURL(p.url);
       });
@@ -211,8 +210,8 @@ const App: React.FC = () => {
 
     let gpx = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="TrekTrack" xmlns="http://www.topografix.com/GPX/1/1">
-  <metadata><name>Expedition Export ${new Date().toLocaleDateString()}</name></metadata>
-  <trk><name>Digital Trail</name><trkseg>`;
+  <metadata><name>TrekTrack Route ${new Date().toLocaleDateString()}</name></metadata>
+  <trk><name>Photo Route</name><trkseg>`;
     
     validPhotos.forEach(p => {
       gpx += `
@@ -237,54 +236,53 @@ const App: React.FC = () => {
   return (
     <div className={`flex flex-col lg:flex-row h-screen w-full overflow-hidden transition-all duration-500 ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
       
-      {/* Enhanced Drag Overlay */}
       {isDragging && (
-        <div className="fixed inset-0 z-[100] bg-emerald-500/10 dark:bg-emerald-500/20 backdrop-blur-xl border-[10px] border-dashed border-emerald-500 flex items-center justify-center pointer-events-none">
-          <div className="bg-white dark:bg-slate-900 p-12 sm:p-16 rounded-[2rem] shadow-2xl flex flex-col items-center gap-5 transform animate-in zoom-in-95 border border-emerald-500/30">
-            <div className="p-6 bg-emerald-500 rounded-full text-white shadow-2xl shadow-emerald-500/40 animate-bounce">
-               <Upload size={56} strokeWidth={2.5}/>
+        <div className="fixed inset-0 z-[100] bg-emerald-500/10 dark:bg-emerald-500/20 backdrop-blur-lg border-4 border-dashed border-emerald-500 flex items-center justify-center pointer-events-none">
+          <div className="bg-white dark:bg-slate-900 p-10 sm:p-12 rounded-2xl shadow-xl flex flex-col items-center gap-4 animate-in zoom-in-95 border border-emerald-500/30">
+            <div className="p-5 bg-emerald-500 rounded-2xl text-white shadow-lg shadow-emerald-500/30">
+               <Upload size={44} strokeWidth={2.25}/>
             </div>
-            <p className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Drop Photos</p>
+            <p className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Drop photos to import</p>
           </div>
         </div>
       )}
 
       <aside 
-        className="w-full lg:w-[460px] flex flex-col h-[52vh] lg:h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] z-20 shadow-2xl transition-all"
+        className="w-full lg:w-[440px] xl:w-[460px] flex flex-col h-[56vh] min-h-[360px] lg:min-h-0 lg:h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] z-20 shadow-xl transition-all"
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={(e) => { e.preventDefault(); setIsDragging(false); processFiles(Array.from(e.dataTransfer.files)); }}
       >
-        <header className="p-5 sm:p-8 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-2xl z-30">
-          <div className="flex items-center justify-between mb-5 sm:mb-8">
+        <header className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl z-30">
+          <div className="flex items-center justify-between mb-4 sm:mb-5">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-emerald-500 rounded-2xl text-white shadow-lg shadow-emerald-500/20 rotate-3 transition-transform hover:rotate-0">
-                <Compass size={24}/>
+              <div className="p-2.5 bg-emerald-500 rounded-xl text-white shadow-sm">
+                <Compass size={22}/>
               </div>
               <div>
-                <h1 className="text-2xl font-black tracking-tighter leading-none mb-1">TrekTrack</h1>
-                <p className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Photo Route Mapper</p>
+                <h1 className="text-2xl font-bold tracking-tight leading-none mb-1">TrekTrack</h1>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Photo route mapper</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => setDarkMode(!darkMode)} 
                 title={darkMode ? "Switch to Day" : "Switch to Night"}
-                className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all active:scale-95"
+                className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all active:scale-95"
               >
                 {darkMode ? <Sun size={20}/> : <Moon size={20}/>}
               </button>
             </div>
           </div>
 
-          <label className={`group relative flex flex-col items-center justify-center gap-4 w-full p-6 sm:p-8 rounded-[1.75rem] border-2 border-dashed transition-all cursor-pointer ${isConverting ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 cursor-wait' : 'bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/30 dark:hover:bg-emerald-500/5'}`}>
-            <div className={`p-4 rounded-2xl transition-all ${isConverting ? 'bg-slate-200 dark:bg-slate-700 text-slate-400' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm group-hover:scale-110 group-hover:bg-emerald-500 group-hover:text-white'}`}>
-              {isConverting ? <Activity className="animate-spin" size={28}/> : <Upload size={28}/>}
+          <label className={`group relative flex items-center justify-center gap-4 w-full p-4 sm:p-5 rounded-2xl border-2 border-dashed transition-all cursor-pointer ${isConverting ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 cursor-wait' : 'bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/30 dark:hover:bg-emerald-500/5'}`}>
+            <div className={`p-3 rounded-xl transition-all ${isConverting ? 'bg-slate-200 dark:bg-slate-700 text-slate-400' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm group-hover:bg-emerald-500 group-hover:text-white'}`}>
+              {isConverting ? <Activity className="animate-spin" size={24}/> : <Upload size={24}/>}
             </div>
-            <div className="text-center">
-              <span className="block font-black text-base">{isConverting ? 'Reading photo metadata...' : 'Add Trek Photos'}</span>
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 flex items-center justify-center gap-2">
-                <Zap size={10} className="text-amber-500"/> GPS EXIF, HEIC and JPEG
+            <div className="text-left">
+              <span className="block font-semibold text-base">{isConverting ? 'Reading photo metadata...' : 'Add photos'}</span>
+              <span className="block text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                GPS EXIF, HEIC, and JPEG supported
               </span>
             </div>
             {!isConverting && <input type="file" multiple accept="image/*,.heic,.heif" onChange={handleFileUpload} className="hidden" />}
@@ -302,48 +300,48 @@ const App: React.FC = () => {
           )}
         </header>
 
-        <div className="flex-1 p-5 sm:p-8 space-y-8 sm:space-y-10 overflow-y-auto no-scrollbar">
+        <div className="flex-1 p-4 sm:p-6 space-y-6 overflow-y-auto no-scrollbar">
           {stats && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-	                <div className="bg-slate-50 dark:bg-slate-800/40 p-5 sm:p-6 rounded-[1.5rem] border border-slate-100 dark:border-slate-800/50 transition-all hover:border-emerald-500/20 group">
-                  <div className="flex items-center gap-2 text-emerald-500 mb-2 group-hover:scale-110 origin-left transition-transform"><Footprints size={14}/><span className="text-[10px] font-black uppercase tracking-tighter">Distance</span></div>
-                  <div className="text-3xl font-black tracking-tight">{stats.distance} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">km</span></div>
+	                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                  <div className="flex items-center gap-2 text-emerald-500 mb-2"><Footprints size={14}/><span className="text-xs font-semibold">Distance</span></div>
+                  <div className="text-2xl font-bold tracking-tight">{stats.distance} <span className="text-xs text-slate-400 font-medium">km</span></div>
                 </div>
-	                <div className="bg-slate-50 dark:bg-slate-800/40 p-5 sm:p-6 rounded-[1.5rem] border border-slate-100 dark:border-slate-800/50 transition-all hover:border-amber-500/20 group">
-                  <div className="flex items-center gap-2 text-amber-500 mb-2 group-hover:scale-110 origin-left transition-transform"><Mountain size={14}/><span className="text-[10px] font-black uppercase tracking-tighter">Elevation</span></div>
-                  <div className="text-3xl font-black tracking-tight">{stats.maxAlt ?? '--'} <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">m</span></div>
+	                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                  <div className="flex items-center gap-2 text-amber-500 mb-2"><Mountain size={14}/><span className="text-xs font-semibold">High point</span></div>
+                  <div className="text-2xl font-bold tracking-tight">{stats.maxAlt ?? '--'} <span className="text-xs text-slate-400 font-medium">m</span></div>
                 </div>
               </div>
               <ElevationProfile photos={photos} activePhotoId={activePhotoId} onHover={setActivePhotoId} />
             </div>
           )}
 
-          <div className="space-y-6">
-            <div className="flex items-center justify-between sticky top-0 bg-white dark:bg-[#0f172a] py-3 z-10 border-b border-transparent dark:border-white/5">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between sticky top-0 bg-white dark:bg-[#0f172a] py-3 z-10 border-b border-slate-100 dark:border-slate-800/70 gap-3">
               <div className="flex flex-col">
-	                <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Photo Waypoints</h3>
-	                <span className="text-[9px] font-bold text-emerald-500 uppercase">{geotaggedCount} mapped of {photos.length}</span>
+	                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Photos</h3>
+	                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{geotaggedCount} mapped of {photos.length}</span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap justify-end">
                 {photos.length > 0 && (
                   <>
 	                    <button 
 	                      onClick={exportGPX}
                           disabled={geotaggedCount === 0}
-	                      title="Export GPX Route"
-	                      className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+	                      title="Export GPX"
+	                      className="p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Download size={18}/>
                     </button>
                     <button 
                       onClick={handleClearAll}
-                      title="Clear All Mission Assets"
-                      className="p-3 bg-rose-50 dark:bg-rose-500/10 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all active:scale-95 group/clear"
+                      title="Clear photos"
+                      className="p-2.5 bg-rose-50 dark:bg-rose-500/10 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all active:scale-95 group/clear"
                     >
                       <Trash size={18} className="group-hover/clear:rotate-12 transition-transform"/>
                     </button>
-                    <button onClick={() => setIsGalleryOpen(true)} className="flex items-center gap-2 px-5 py-3 bg-emerald-500 text-white text-[10px] font-black rounded-2xl hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest active:scale-95">
+                    <button onClick={() => setIsGalleryOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 text-white text-xs font-semibold rounded-xl hover:bg-emerald-600 transition-all shadow-sm shadow-emerald-500/20 active:scale-95">
                       <ImageIcon size={16}/> Gallery
                     </button>
                   </>
@@ -351,34 +349,40 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-4 pb-24">
+            <div className="space-y-3 pb-24">
               {sortedPhotos.map((photo, idx) => (
                 <div 
                   key={photo.id}
-                  className={`group relative flex items-center gap-4 sm:gap-5 p-4 sm:p-5 rounded-[1.5rem] border-2 transition-all cursor-pointer ${activePhotoId === photo.id ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-500/10 shadow-2xl shadow-emerald-500/10' : 'border-slate-50 dark:border-slate-800/30 hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                  className={`group relative flex items-center gap-4 p-3 rounded-2xl border transition-all cursor-pointer ${activePhotoId === photo.id ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-500/10 shadow-sm shadow-emerald-500/10' : 'border-slate-100 dark:border-slate-800/50 hover:border-slate-200 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
                   onClick={() => {
                     setActivePhotoId(photo.id);
                     if (activePhotoId === photo.id) { setGalleryIndex(idx); setIsGalleryOpen(true); }
                   }}
                 >
-                  <div className="relative w-16 h-16 rounded-[1.25rem] overflow-hidden flex-shrink-0 shadow-inner bg-slate-100 dark:bg-slate-800">
+                  <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 shadow-inner bg-slate-100 dark:bg-slate-800">
                     <img src={photo.url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="" loading="lazy" />
                     {!photo.location && (
                       <div className="absolute inset-0 bg-rose-500/40 flex items-center justify-center backdrop-blur-[2px]"><MapPin size={20} className="text-white" /></div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black truncate mb-1 dark:text-slate-100">{photo.name}</p>
-                    <div className="flex items-center gap-4 text-slate-400 dark:text-slate-500">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold"><Calendar size={12}/> {photo.location?.timestamp?.toLocaleDateString() || '--'}</div>
-                      {photo.location?.alt !== undefined && <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500"><Mountain size={12}/> {Math.round(photo.location.alt)}m</div>}
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold truncate dark:text-slate-100">{photo.name}</p>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${photo.location ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'}`}>
+                        {photo.location ? 'Mapped' : 'No GPS'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-1.5 text-xs font-medium"><Calendar size={12}/> {photo.location?.timestamp?.toLocaleDateString() || '--'}</div>
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"><Mountain size={12}/> {photo.location?.alt !== undefined ? `${Math.round(photo.location.alt)}m` : '--'}</div>
                     </div>
                   </div>
                   <div className="flex flex-col items-center gap-3">
                     <button 
                       onClick={(e) => deletePhoto(photo.id, e)}
-                      title="Discard Waypoint"
-                      className="p-2.5 text-slate-300 dark:text-slate-700 hover:text-rose-500 dark:hover:text-rose-400 transition-all opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 active:scale-90"
+                      aria-label={`Delete ${photo.name}`}
+                      title="Delete photo"
+                      className="p-2.5 text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 transition-all sm:opacity-0 sm:group-hover:opacity-100 sm:translate-x-2 sm:group-hover:translate-x-0 active:scale-90"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -388,12 +392,12 @@ const App: React.FC = () => {
               ))}
               
               {photos.length === 0 && (
-                <div className="py-24 flex flex-col items-center text-center group">
-                  <div className="w-28 h-28 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mb-10 border border-slate-100 dark:border-slate-800 transition-all group-hover:scale-110 group-hover:rotate-6">
-                    <Box size={48} className="text-slate-200 dark:text-slate-700" />
+                <div className="py-16 sm:py-20 flex flex-col items-center text-center group">
+                  <div className="w-24 h-24 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center justify-center mb-6 border border-slate-100 dark:border-slate-800 transition-all">
+                    <Box size={40} className="text-slate-300 dark:text-slate-600" />
                   </div>
-	                  <h4 className="text-xl font-black mb-3 uppercase tracking-tight dark:text-slate-100">No Photos Yet</h4>
-	                  <p className="text-[11px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-[0.18em] max-w-[260px] leading-relaxed">Add geotagged photos to draw your route and elevation profile</p>
+	                  <h4 className="text-lg font-semibold mb-2 dark:text-slate-100">No photos yet</h4>
+	                  <p className="text-sm text-slate-500 dark:text-slate-400 max-w-[280px] leading-relaxed">Add geotagged photos to draw your route and elevation profile.</p>
                 </div>
               )}
             </div>
@@ -401,17 +405,16 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 relative bg-slate-100 dark:bg-[#020617] transition-colors duration-500">
+      <main className="flex-1 relative min-h-0 bg-slate-100 dark:bg-[#020617] transition-colors duration-500">
         <Map photos={photos} activePhotoId={activePhotoId} onPhotoSelect={setActivePhotoId} />
         
-        {/* HUD Overlay */}
-        <div className="absolute left-4 right-4 top-4 lg:left-10 lg:right-auto lg:top-10 flex flex-col gap-6 z-20 pointer-events-none lg:max-w-sm">
-          <div className="p-5 lg:p-8 bg-white/95 dark:bg-slate-900/95 backdrop-blur-3xl rounded-[1.75rem] shadow-2xl border border-white/50 dark:border-slate-800/50 pointer-events-auto transition-all hover:scale-[1.02] group">
-            <div className="flex items-center gap-4 mb-5">
-              <div className="p-3 bg-emerald-500 rounded-2xl text-white shadow-xl group-hover:rotate-12 transition-transform"><Info size={22}/></div>
-              <span className="text-sm font-black uppercase tracking-[0.2em] dark:text-slate-100">Route Summary</span>
+        <div className="absolute left-3 right-3 top-3 lg:left-6 lg:right-auto lg:top-6 flex flex-col gap-4 z-20 pointer-events-none lg:max-w-sm">
+          <div className="p-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 dark:border-slate-800/50 pointer-events-auto">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2.5 bg-emerald-500 rounded-xl text-white shadow-sm"><Info size={18}/></div>
+              <span className="text-sm font-semibold dark:text-slate-100">Route summary</span>
             </div>
-            <p className="text-[12px] text-slate-500 dark:text-slate-400 leading-relaxed font-bold uppercase tracking-tight">
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
               Tracking <span className="text-slate-900 dark:text-emerald-400 font-black">{geotaggedCount} mapped photos</span>. 
               {stats ? ` Route distance is ${stats.distance}km.` : " Add at least two GPS photos to calculate distance."}
             </p>
