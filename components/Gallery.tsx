@@ -4,7 +4,7 @@ import {
   X, ChevronLeft, ChevronRight,
   Calendar, Mountain, Clock, MapPin, 
   Download, Camera as CameraIcon,
-  Maximize, Target
+  Info, Target
 } from 'lucide-react';
 import { TrekPhoto } from '../types';
 
@@ -17,7 +17,9 @@ interface GalleryProps {
 
 const Gallery: React.FC<GalleryProps> = ({ photos, initialIndex, onClose, onPhotoChange }) => {
   const [index, setIndex] = useState(initialIndex);
-  const [showInfo, setShowInfo] = useState(true);
+  const [showInfo, setShowInfo] = useState(() => (
+    typeof window === 'undefined' ? true : window.innerWidth >= 768
+  ));
   const currentPhoto = photos[index];
 
   const navigate = useCallback((dir: 'prev' | 'next') => {
@@ -46,161 +48,94 @@ const Gallery: React.FC<GalleryProps> = ({ photos, initialIndex, onClose, onPhot
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] bg-[#020617] flex flex-col md:flex-row animate-in fade-in duration-500 select-none overflow-hidden">
-      {/* Sidebar for Details */}
-      <aside className={`bg-[#0f172a] border-r border-slate-800 transition-all duration-500 ease-in-out flex flex-col ${showInfo ? 'w-full md:w-[400px] opacity-100' : 'w-0 opacity-0 overflow-hidden'}`}>
-        <div className="p-10 h-full flex flex-col overflow-y-auto no-scrollbar">
-          <header className="mb-10">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 bg-emerald-500 rounded-2xl text-white shadow-lg">
-                <Maximize size={22}/>
-              </div>
-              <div className="px-4 py-1.5 bg-slate-800/50 rounded-full text-[10px] font-black text-slate-400 uppercase tracking-widest border border-slate-800">
-                Log Asset #{index + 1}
-              </div>
-            </div>
-            <h2 className="text-white font-black text-3xl mb-4 tracking-tighter leading-tight uppercase line-clamp-2">{currentPhoto.name}</h2>
-            <div className="w-12 h-1 bg-emerald-500/30 rounded-full mb-12"></div>
-            
-            <div className="space-y-8">
-              <div className="flex items-start gap-5">
-                <div className="p-3 bg-slate-800/50 text-emerald-500 rounded-xl border border-white/5"><Calendar size={20}/></div>
-                <div>
-                  <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-1.5">Expedition Date</p>
-                  <p className="text-white font-black text-base">{currentPhoto.location?.timestamp?.toLocaleDateString() || 'No Data'}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-5">
-                <div className="p-3 bg-slate-800/50 text-blue-400 rounded-xl border border-white/5"><Clock size={20}/></div>
-                <div>
-                  <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-1.5">Time Stamp</p>
-                  <p className="text-white font-black text-base">{currentPhoto.location?.timestamp?.toLocaleTimeString() || 'No Data'}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-5">
-                <div className="p-3 bg-slate-800/50 text-amber-500 rounded-xl border border-white/5"><Mountain size={20}/></div>
-                <div>
-                  <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-1.5">Recorded Elevation</p>
-                  <p className="text-white font-black text-base">{currentPhoto.location?.alt !== undefined ? `${Math.round(currentPhoto.location.alt)} Meters` : 'No Data'}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-5">
-                <div className="p-3 bg-slate-800/50 text-rose-500 rounded-xl border border-white/5"><MapPin size={20}/></div>
-                <div>
-                  <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-1.5">Spatial Data</p>
-                  <p className="text-slate-400 font-mono text-[12px]">
-                    {currentPhoto.location ? `${currentPhoto.location.lat.toFixed(6)}, ${currentPhoto.location.lng.toFixed(6)}` : 'Signal Obstructed'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </header>
-
-          <div className="flex-1 space-y-12">
-            {currentPhoto.camera && (
-              <div className="pt-10 border-t border-slate-800/50 space-y-8">
-                <div className="flex items-center gap-3 text-slate-500">
-                  <CameraIcon size={18}/>
-                  <span className="text-[10px] font-black uppercase tracking-[0.3em]">Hardware Specs</span>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-800/20 p-5 rounded-2xl border border-white/5 hover:bg-slate-800/40 transition-colors">
-                    <p className="text-slate-500 text-[9px] font-black uppercase mb-1.5">Device</p>
-                    <p className="text-white text-[11px] font-black truncate">{currentPhoto.camera.model || 'Unknown'}</p>
-                  </div>
-                  <div className="bg-slate-800/20 p-5 rounded-2xl border border-white/5 hover:bg-slate-800/40 transition-colors">
-                    <p className="text-slate-500 text-[9px] font-black uppercase mb-1.5">Optics</p>
-                    <p className="text-white text-[11px] font-black">{currentPhoto.camera.fNumber ? `f/${currentPhoto.camera.fNumber}` : '--'}</p>
-                  </div>
-                  <div className="bg-slate-800/20 p-5 rounded-2xl border border-white/5 hover:bg-slate-800/40 transition-colors">
-                    <p className="text-slate-500 text-[9px] font-black uppercase mb-1.5">Shutter</p>
-                    <p className="text-white text-[11px] font-black">{currentPhoto.camera.exposureTime || '--'}s</p>
-                  </div>
-                  <div className="bg-slate-800/20 p-5 rounded-2xl border border-white/5 hover:bg-slate-800/40 transition-colors">
-                    <p className="text-slate-500 text-[9px] font-black uppercase mb-1.5">Sensor</p>
-                    <p className="text-white text-[11px] font-black">ISO {currentPhoto.camera.iso || '--'}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <footer className="mt-12 grid grid-cols-2 gap-4">
-             <button 
-              onClick={handleDownload}
-              className="flex items-center justify-center gap-3 py-5 bg-white/5 text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all border border-white/10"
-            >
-              <Download size={18}/> Export
-            </button>
-            <button 
-              onClick={onClose}
-              className="flex items-center justify-center gap-3 py-5 bg-emerald-500 text-white rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-2xl shadow-emerald-500/20"
-            >
-              Back
-            </button>
-          </footer>
-        </div>
+    <div className="fixed inset-0 z-[1000] bg-[#020617] flex animate-in fade-in duration-300 select-none overflow-hidden">
+      <aside className={`hidden md:flex bg-[#0f172a] border-r border-slate-800 transition-all duration-300 ease-in-out flex-col ${showInfo ? 'w-[360px] lg:w-[400px] opacity-100' : 'w-0 opacity-0 overflow-hidden'}`}>
+        <GalleryDetails
+          photo={currentPhoto}
+          index={index}
+          total={photos.length}
+          onDownload={handleDownload}
+          onClose={onClose}
+        />
       </aside>
 
-      {/* Main Viewing Area - FIXED Centering Logic */}
       <div className="flex-1 relative flex flex-col bg-[#020617] overflow-hidden">
-        {/* Navigation Overlays */}
-        <div className="absolute top-0 inset-x-0 p-10 flex justify-between items-center z-50 pointer-events-none">
-          <div className="px-6 py-3 bg-black/50 backdrop-blur-2xl border border-white/10 rounded-full text-white text-[11px] font-black tracking-[0.2em] uppercase pointer-events-auto shadow-2xl">
-             Expedition Log {index + 1} / {photos.length}
+        <div className="absolute top-0 inset-x-0 p-3 sm:p-5 lg:p-6 flex justify-between items-center z-50 pointer-events-none">
+          <div className="px-3 py-2 bg-black/50 backdrop-blur-xl border border-white/10 rounded-full text-white text-xs font-semibold pointer-events-auto shadow-lg">
+             Photo {index + 1} / {photos.length}
           </div>
-          <div className="flex gap-4 pointer-events-auto">
+          <div className="flex gap-2 pointer-events-auto">
             <button 
               onClick={() => setShowInfo(!showInfo)}
-              className={`p-4 rounded-full backdrop-blur-2xl transition-all shadow-2xl ${showInfo ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white border border-white/10 hover:bg-white/20'}`}
+              title={showInfo ? 'Hide details' : 'Show details'}
+              className={`p-3 rounded-full backdrop-blur-xl transition-all shadow-lg ${showInfo ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white border border-white/10 hover:bg-white/20'}`}
             >
-              <Target size={22}/>
+              <Target size={18}/>
+            </button>
+            <button 
+              onClick={handleDownload}
+              title="Download photo"
+              className="p-3 bg-white/10 text-white rounded-full backdrop-blur-xl border border-white/10 hover:bg-white/20 transition-all shadow-lg"
+            >
+              <Download size={18}/>
             </button>
             <button 
               onClick={onClose}
-              className="p-4 bg-white/10 text-white rounded-full backdrop-blur-2xl border border-white/10 hover:bg-rose-500 transition-all shadow-2xl"
+              title="Close gallery"
+              className="p-3 bg-white/10 text-white rounded-full backdrop-blur-xl border border-white/10 hover:bg-rose-500 transition-all shadow-lg"
             >
-              <X size={22}/>
+              <X size={18}/>
             </button>
           </div>
         </div>
 
-        {/* Viewport - Using Flex Contain to solve zoom issues */}
-        <div className="flex-1 flex items-center justify-center relative p-12 overflow-hidden bg-[radial-gradient(circle_at_center,_#0f172a_0%,_#020617_100%)]">
+        <div className="flex-1 flex items-center justify-center relative px-4 py-20 sm:p-20 overflow-hidden bg-[#020617]">
           <button 
             onClick={() => navigate('prev')}
-            className="absolute left-10 p-6 text-white bg-black/40 hover:bg-emerald-500 transition-all z-50 backdrop-blur-3xl rounded-full border border-white/5 shadow-2xl"
+            className="absolute left-3 sm:left-5 p-3 sm:p-4 text-white bg-black/40 hover:bg-emerald-500 transition-all z-50 backdrop-blur-xl rounded-full border border-white/10 shadow-lg"
           >
-            <ChevronLeft size={32}/>
+            <ChevronLeft size={24}/>
           </button>
           
-          {/* Centered Image Container */}
           <div className="w-full h-full flex items-center justify-center animate-in fade-in duration-700">
             <img 
               key={currentPhoto.id}
               src={currentPhoto.url} 
-              className="max-w-full max-h-full object-contain pointer-events-none shadow-[0_40px_100px_rgba(0,0,0,0.8)]" 
+              className="max-w-full max-h-full object-contain pointer-events-none shadow-[0_24px_70px_rgba(0,0,0,0.65)]" 
               alt={currentPhoto.name}
             />
           </div>
 
           <button 
             onClick={() => navigate('next')}
-            className="absolute right-10 p-6 text-white bg-black/40 hover:bg-emerald-500 transition-all z-50 backdrop-blur-3xl rounded-full border border-white/5 shadow-2xl"
+            className="absolute right-3 sm:right-5 p-3 sm:p-4 text-white bg-black/40 hover:bg-emerald-500 transition-all z-50 backdrop-blur-xl rounded-full border border-white/10 shadow-lg"
           >
-            <ChevronRight size={32}/>
+            <ChevronRight size={24}/>
           </button>
         </div>
 
-        {/* Thumbnail Navigator */}
-        <div className="px-10 py-8 bg-[#0f172a]/60 backdrop-blur-3xl border-t border-white/5 flex items-center justify-center gap-4 overflow-x-auto no-scrollbar z-50">
+        {showInfo && (
+          <div className="md:hidden absolute left-3 right-3 bottom-[92px] max-h-[42vh] overflow-y-auto no-scrollbar rounded-2xl bg-[#0f172a]/95 backdrop-blur-xl border border-white/10 shadow-xl z-50">
+            <GalleryDetails
+              photo={currentPhoto}
+              index={index}
+              total={photos.length}
+              onDownload={handleDownload}
+              onClose={onClose}
+              compact
+            />
+          </div>
+        )}
+
+        <div className="px-3 sm:px-6 py-3 sm:py-4 bg-[#0f172a]/80 backdrop-blur-xl border-t border-white/5 flex items-center sm:justify-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar z-40">
           {photos.map((p, idx) => (
             <button
               key={p.id}
               onClick={() => { setIndex(idx); onPhotoChange(p.id); }}
-              className={`relative flex-shrink-0 w-24 h-16 rounded-2xl overflow-hidden border-2 transition-all duration-300 ${idx === index ? 'border-emerald-500 scale-110 shadow-2xl z-10' : 'border-transparent opacity-30 hover:opacity-100 hover:scale-105'}`}
+              className={`relative flex-shrink-0 w-16 h-12 sm:w-20 sm:h-14 rounded-xl overflow-hidden border-2 transition-all duration-200 ${idx === index ? 'border-emerald-500 shadow-lg z-10' : 'border-transparent opacity-45 hover:opacity-100'}`}
+              aria-label={`Open photo ${idx + 1}`}
             >
-              <img src={p.url} className="w-full h-full object-cover" />
+              <img src={p.url} className="w-full h-full object-cover" alt="" />
             </button>
           ))}
         </div>
@@ -208,5 +143,100 @@ const Gallery: React.FC<GalleryProps> = ({ photos, initialIndex, onClose, onPhot
     </div>
   );
 };
+
+const DetailItem = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) => (
+  <div className="flex items-start gap-3">
+    <div className="p-2.5 bg-slate-800/60 text-emerald-400 rounded-xl border border-white/5">{icon}</div>
+    <div className="min-w-0">
+      <p className="text-slate-500 text-xs font-medium mb-1">{label}</p>
+      <p className="text-white font-semibold text-sm break-words">{value}</p>
+    </div>
+  </div>
+);
+
+const GalleryDetails = ({
+  photo,
+  index,
+  total,
+  onDownload,
+  onClose,
+  compact = false
+}: {
+  photo: TrekPhoto;
+  index: number;
+  total: number;
+  onDownload: () => void;
+  onClose: () => void;
+  compact?: boolean;
+}) => (
+  <div className={`${compact ? 'p-4' : 'p-6 lg:p-8'} h-full flex flex-col overflow-y-auto no-scrollbar`}>
+    <header className={compact ? 'mb-5' : 'mb-8'}>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2.5 bg-emerald-500 rounded-xl text-white shadow-sm">
+          <Info size={18}/>
+        </div>
+        <div className="px-3 py-1.5 bg-slate-800/60 rounded-full text-xs font-semibold text-slate-300 border border-slate-800">
+          Photo {index + 1} of {total}
+        </div>
+      </div>
+      <h2 className="text-white font-bold text-xl lg:text-2xl mb-3 tracking-tight leading-tight line-clamp-2">{photo.name}</h2>
+
+      <div className="grid grid-cols-1 gap-4">
+        <DetailItem icon={<Calendar size={18}/>} label="Date" value={photo.location?.timestamp?.toLocaleDateString() || 'No data'} />
+        <DetailItem icon={<Clock size={18}/>} label="Time" value={photo.location?.timestamp?.toLocaleTimeString() || 'No data'} />
+        <DetailItem icon={<Mountain size={18}/>} label="Elevation" value={photo.location?.alt !== undefined ? `${Math.round(photo.location.alt)} m` : 'No data'} />
+        <DetailItem
+          icon={<MapPin size={18}/>}
+          label="Location"
+          value={photo.location ? <span className="font-mono text-xs text-slate-300">{photo.location.lat.toFixed(6)}, {photo.location.lng.toFixed(6)}</span> : 'No GPS'}
+        />
+      </div>
+    </header>
+
+    {photo.camera && (
+      <div className={`${compact ? 'pt-4' : 'pt-6'} border-t border-slate-800/70 space-y-4`}>
+        <div className="flex items-center gap-2 text-slate-400">
+          <CameraIcon size={16}/>
+          <span className="text-xs font-semibold">Camera</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-slate-800/30 p-3 rounded-xl border border-white/5">
+            <p className="text-slate-500 text-xs font-medium mb-1">Device</p>
+            <p className="text-white text-xs font-semibold truncate">{photo.camera.model || 'Unknown'}</p>
+          </div>
+          <div className="bg-slate-800/30 p-3 rounded-xl border border-white/5">
+            <p className="text-slate-500 text-xs font-medium mb-1">Aperture</p>
+            <p className="text-white text-xs font-semibold">{photo.camera.fNumber ? `f/${photo.camera.fNumber}` : '--'}</p>
+          </div>
+          <div className="bg-slate-800/30 p-3 rounded-xl border border-white/5">
+            <p className="text-slate-500 text-xs font-medium mb-1">Shutter</p>
+            <p className="text-white text-xs font-semibold">{photo.camera.exposureTime || '--'}s</p>
+          </div>
+          <div className="bg-slate-800/30 p-3 rounded-xl border border-white/5">
+            <p className="text-slate-500 text-xs font-medium mb-1">ISO</p>
+            <p className="text-white text-xs font-semibold">{photo.camera.iso || '--'}</p>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {!compact && (
+      <footer className="mt-auto pt-8 grid grid-cols-2 gap-3">
+        <button 
+          onClick={onDownload}
+          className="flex items-center justify-center gap-2 py-3 bg-white/5 text-white rounded-xl text-xs font-semibold hover:bg-white/10 transition-all border border-white/10"
+        >
+          <Download size={16}/> Download
+        </button>
+        <button 
+          onClick={onClose}
+          className="flex items-center justify-center gap-2 py-3 bg-emerald-500 text-white rounded-xl text-xs font-semibold hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20"
+        >
+          Close
+        </button>
+      </footer>
+    )}
+  </div>
+);
 
 export default Gallery;
