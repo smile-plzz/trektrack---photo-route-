@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  X, ChevronLeft, ChevronRight, Maximize2, 
+  X, ChevronLeft, ChevronRight,
   Calendar, Mountain, Clock, MapPin, 
   Download, Camera as CameraIcon,
   Maximize, Target
@@ -81,7 +81,7 @@ const Gallery: React.FC<GalleryProps> = ({ photos, initialIndex, onClose, onPhot
                 <div className="p-3 bg-slate-800/50 text-amber-500 rounded-xl border border-white/5"><Mountain size={20}/></div>
                 <div>
                   <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-1.5">Recorded Elevation</p>
-                  <p className="text-white font-black text-base">{currentPhoto.location?.alt ? `${Math.round(currentPhoto.location.alt)} Meters` : 'No Data'}</p>
+                  <p className="text-white font-black text-base">{currentPhoto.location?.alt !== undefined ? `${Math.round(currentPhoto.location.alt)} Meters` : 'No Data'}</p>
                 </div>
               </div>
               <div className="flex items-start gap-5">

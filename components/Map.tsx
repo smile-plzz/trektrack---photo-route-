@@ -11,6 +11,14 @@ interface MapProps {
 
 type LayerType = 'standard' | 'satellite' | 'terrain' | 'dark';
 
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -24,10 +32,20 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const playbackRef = useRef<number | null>(null);
 
-  // Sync activeLayer with global document theme
   useEffect(() => {
-    const isDark = document.documentElement.classList.contains('dark');
-    setActiveLayer(isDark ? 'dark' : 'standard');
+    const syncLayerWithTheme = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      setActiveLayer(current => {
+        if (current === 'dark' && !isDark) return 'standard';
+        if (current === 'standard' && isDark) return 'dark';
+        return current;
+      });
+    };
+
+    syncLayerWithTheme();
+    const observer = new MutationObserver(syncLayerWithTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
   }, []);
 
   const fitAllBounds = () => {
@@ -136,6 +154,7 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
 
     if (validPhotos.length > 0 && mapRef.current) {
       const points = validPhotos.map(p => [p.location!.lat, p.location!.lng]);
+      mapRef.current.invalidateSize();
 
       validPhotos.forEach((p, idx) => {
         const isStart = idx === 0;
@@ -165,27 +184,30 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
           onPhotoSelect?.(p.id);
         });
 
-        const altitude = p.location?.alt ? `${Math.round(p.location.alt)}m` : 'N/A';
+        const altitude = p.location?.alt !== undefined ? `${Math.round(p.location.alt)}m` : 'N/A';
         const dateStr = p.location?.timestamp ? p.location.timestamp.toLocaleString() : 'N/A';
+        const safeId = escapeHtml(p.id);
+        const safeName = escapeHtml(p.name);
+        const safeUrl = escapeHtml(p.url);
 
         marker.bindPopup(`
-          <div class="p-0 overflow-hidden w-[280px] bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
-            <div class="relative group cursor-pointer overflow-hidden aspect-[4/3]" onclick="window.dispatchEvent(new CustomEvent('trek-open-gallery', {detail: '${p.id}'}))">
-              <img src="${p.url}" class="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+          <div class="p-0 overflow-hidden w-[280px] bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <div class="relative group cursor-pointer overflow-hidden aspect-[4/3]" onclick="window.dispatchEvent(new CustomEvent('trek-open-gallery', {detail: '${safeId}'}))">
+              <img src="${safeUrl}" class="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt="" />
               <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div class="absolute bottom-4 left-4 right-4 flex justify-between items-center translate-y-4 group-hover:translate-y-0 transition-transform">
-                <span class="text-[10px] font-black text-white uppercase tracking-widest bg-emerald-500 px-3 py-1.5 rounded-full shadow-lg">View Full Detail</span>
+                <span class="text-[10px] font-black text-white uppercase tracking-widest bg-emerald-500 px-3 py-1.5 rounded-full shadow-lg">Open Photo</span>
               </div>
             </div>
             <div class="p-5">
-              <h4 class="text-[14px] font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3 truncate">${p.name}</h4>
+              <h4 class="text-[14px] font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3 truncate">${safeName}</h4>
               <div class="space-y-3">
                 <div class="flex items-center gap-3 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
-                  <span class="p-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-200 rounded-xl"><Layers size={12}/></span>
+                  <span class="p-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-200 rounded-xl">#</span>
                   Waypoint ${sequenceNumber} of ${validPhotos.length}
                 </div>
                 <div class="flex items-center gap-3 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
-                  <span class="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 rounded-xl"><Focus size={12}/></span>
+                  <span class="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 rounded-xl">M</span>
                   Altitude: <span class="text-slate-900 dark:text-slate-200 ml-1 font-black">${altitude}</span>
                 </div>
                 <div class="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.1em] pt-2 border-t border-slate-50 dark:border-slate-800">
@@ -244,17 +266,17 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
     <div className="relative w-full h-full bg-slate-100 dark:bg-slate-950 group/map">
       <div ref={mapContainerRef} className="w-full h-full" />
       
-      <div className="absolute top-8 right-8 z-[10] flex flex-col items-end gap-4 pointer-events-none">
-        <div className="flex gap-4 pointer-events-auto">
+      <div className="absolute top-4 right-4 lg:top-8 lg:right-8 z-[10] flex flex-col items-end gap-3 lg:gap-4 pointer-events-none">
+        <div className="flex flex-wrap justify-end gap-2 lg:gap-4 pointer-events-auto">
           <button 
             onClick={fitAllBounds}
-            className="p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-3xl shadow-2xl border border-white dark:border-slate-800 hover:bg-slate-900 dark:hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-3 font-black text-xs uppercase tracking-widest group"
+            className="p-3 lg:p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-2xl shadow-2xl border border-white dark:border-slate-800 hover:bg-slate-900 dark:hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 lg:gap-3 font-black text-[10px] lg:text-xs uppercase tracking-widest group"
           >
             <Focus size={18} className="group-hover:rotate-180 transition-transform"/> View All
           </button>
           <button 
             onClick={() => setIsPlaying(!isPlaying)}
-            className={`p-4 rounded-3xl shadow-2xl border transition-all flex items-center gap-3 font-black text-xs uppercase tracking-widest ${
+            className={`p-3 lg:p-4 rounded-2xl shadow-2xl border transition-all flex items-center gap-2 lg:gap-3 font-black text-[10px] lg:text-xs uppercase tracking-widest ${
               isPlaying ? 'bg-rose-500 text-white border-rose-500 animate-pulse' : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-white dark:border-slate-800 hover:bg-emerald-500 hover:text-white'
             }`}
           >
@@ -264,13 +286,13 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
         </div>
 
         <div className="relative flex flex-col items-end gap-3 pointer-events-auto">
-          <button onClick={() => setShowLayerMenu(!showLayerMenu)} className="p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-3xl shadow-2xl border border-white dark:border-slate-800 font-black text-xs uppercase tracking-widest flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+          <button onClick={() => setShowLayerMenu(!showLayerMenu)} className="p-3 lg:p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-2xl shadow-2xl border border-white dark:border-slate-800 font-black text-[10px] lg:text-xs uppercase tracking-widest flex items-center gap-2 lg:gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
             <Layers size={18} /> Terrain
             {showLayerMenu ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
           </button>
           
           {showLayerMenu && (
-            <div className="w-64 p-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.3)] border border-white dark:border-slate-800 animate-in slide-in-from-top-4 duration-300">
+            <div className="w-60 sm:w-64 p-5 sm:p-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-[1.75rem] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.3)] border border-white dark:border-slate-800 animate-in slide-in-from-top-4 duration-300">
               <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Select Map View</p>
               <div className="grid grid-cols-1 gap-2">
                 {(['dark', 'standard', 'satellite', 'terrain'] as LayerType[]).map(type => (
