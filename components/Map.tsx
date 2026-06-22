@@ -1,6 +1,5 @@
-
 import React, { useEffect, useRef, useState } from 'react';
-import { Play, Square, Layers, Focus, ChevronUp, ChevronDown, Moon, Sun } from 'lucide-react';
+import { Play, Square, Layers, Focus, ChevronUp, ChevronDown, Moon, Sun, MapPin, Maximize2 } from 'lucide-react';
 import { TrekPhoto } from '../types';
 
 interface MapProps {
@@ -11,14 +10,6 @@ interface MapProps {
 
 type LayerType = 'standard' | 'satellite' | 'terrain' | 'dark';
 
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-
 const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -27,27 +18,12 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
   const markersRef = useRef<Record<string, any>>({});
   const polylineRef = useRef<any>(null);
   
-  const [activeLayer, setActiveLayer] = useState<LayerType>('dark');
+  const [activeLayer, setActiveLayer] = useState<LayerType>(() => {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'standard';
+  });
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const playbackRef = useRef<number | null>(null);
-  const mappedCount = photos.filter(p => p.location).length;
-
-  useEffect(() => {
-    const syncLayerWithTheme = () => {
-      const isDark = document.documentElement.classList.contains('dark');
-      setActiveLayer(current => {
-        if (current === 'dark' && !isDark) return 'standard';
-        if (current === 'standard' && isDark) return 'dark';
-        return current;
-      });
-    };
-
-    syncLayerWithTheme();
-    const observer = new MutationObserver(syncLayerWithTheme);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-    return () => observer.disconnect();
-  }, []);
 
   const fitAllBounds = () => {
     const L = (window as any).L;
@@ -57,7 +33,7 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
     
     const points = validPhotos.map(p => [p.location!.lat, p.location!.lng]);
     const bounds = L.latLngBounds(points);
-    mapRef.current.fitBounds(bounds, { padding: [100, 100], animate: true });
+    mapRef.current.fitBounds(bounds, { padding: [80, 80], animate: true, duration: 1.5 });
   };
 
   const runPlayback = async () => {
@@ -71,7 +47,7 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
     for (const p of validPhotos) {
       if (playbackRef.current === null) break;
       onPhotoSelect?.(p.id);
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 3500));
     }
     setIsPlaying(false);
   };
@@ -92,7 +68,8 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
     if (!mapRef.current && mapContainerRef.current) {
       mapRef.current = L.map(mapContainerRef.current, {
         zoomControl: false,
-        maxZoom: 19 
+        maxZoom: 20,
+        worldCopyJump: true
       }).setView([20, 0], 2);
       
       layersRef.current.standard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -120,15 +97,16 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
         spiderfyOnMaxZoom: true,
-        maxClusterRadius: 40,
+        maxClusterRadius: 50,
         iconCreateFunction: (cluster: any) => {
           const count = cluster.getChildCount();
           return L.divIcon({
             html: `
-              <div class="relative w-11 h-11 flex items-center justify-center group">
+              <div class="relative w-12 h-12 flex items-center justify-center group scale-100 hover:scale-110 transition-transform">
+                <div class="absolute inset-0 bg-emerald-500/25 rounded-full animate-pulse"></div>
                 <div class="absolute inset-0 bg-white/40 dark:bg-black/40 rounded-full blur-md"></div>
-                <div class="relative z-10 w-9 h-9 bg-slate-900 dark:bg-emerald-600 rounded-full flex items-center justify-center border-[3px] border-white dark:border-slate-900 shadow-lg transition-transform group-hover:scale-105">
-                  <span class="text-white font-bold text-xs antialiased">${count}</span>
+                <div class="relative z-10 w-10 h-10 bg-slate-900 dark:bg-emerald-600 rounded-full flex items-center justify-center border-4 border-white dark:border-slate-900 shadow-2xl">
+                  <span class="text-white font-black text-xs">${count}</span>
                 </div>
               </div>`,
             className: 'custom-cluster-icon',
@@ -138,9 +116,7 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
         }
       }).addTo(mapRef.current);
 
-      // Initial layer based on theme
-      const isDark = document.documentElement.classList.contains('dark');
-      layersRef.current[isDark ? 'dark' : 'standard'].addTo(mapRef.current);
+      layersRef.current[activeLayer].addTo(mapRef.current);
       L.control.zoom({ position: 'bottomright' }).addTo(mapRef.current);
     }
 
@@ -154,7 +130,6 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
 
     if (validPhotos.length > 0 && mapRef.current) {
       const points = validPhotos.map(p => [p.location!.lat, p.location!.lng]);
-      mapRef.current.invalidateSize();
 
       validPhotos.forEach((p, idx) => {
         const isStart = idx === 0;
@@ -164,18 +139,18 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
         const icon = L.divIcon({
           className: 'custom-div-icon',
           html: `
-            <div class="relative flex flex-col items-center">
-              <div class="w-9 h-9 rounded-full border-[3px] border-white dark:border-slate-900 shadow-lg flex items-center justify-center font-bold text-[12px] transition-all hover:scale-110 ${
+            <div class="relative flex flex-col items-center group">
+              <div class="w-9 h-9 rounded-full border-4 border-white dark:border-slate-900 shadow-2xl flex items-center justify-center font-black text-[10px] transition-all group-hover:scale-125 ${
                 isStart ? 'bg-emerald-600 text-white' : 
-                isEnd ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900' : 
+                isEnd ? 'bg-amber-600 text-white' : 
                 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white'
               }">
                 ${sequenceNumber}
               </div>
-              <div class="w-1.5 h-3 bg-white dark:bg-slate-800 shadow-sm -mt-0.5 rounded-b-full"></div>
+              <div class="w-1.5 h-3 bg-white dark:bg-slate-800 shadow-lg -mt-1 rounded-b-full"></div>
             </div>`,
-          iconSize: [40, 48],
-          iconAnchor: [20, 48]
+          iconSize: [36, 44],
+          iconAnchor: [18, 44]
         });
 
         const marker = L.marker([p.location!.lat, p.location!.lng], { icon });
@@ -186,51 +161,73 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
 
         const altitude = p.location?.alt !== undefined ? `${Math.round(p.location.alt)}m` : 'N/A';
         const dateStr = p.location?.timestamp ? p.location.timestamp.toLocaleString() : 'N/A';
-        const safeId = escapeHtml(p.id);
-        const safeName = escapeHtml(p.name);
-        const safeUrl = escapeHtml(p.url);
 
         marker.bindPopup(`
-            <div class="p-0 overflow-hidden w-[280px] bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-              <div class="relative group cursor-pointer overflow-hidden aspect-[4/3]" onclick="window.dispatchEvent(new CustomEvent('trek-open-gallery', {detail: '${safeId}'}))">
-              <img src="${safeUrl}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt="" />
-              <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div class="absolute bottom-3 left-3 right-3 flex justify-between items-center translate-y-3 group-hover:translate-y-0 transition-transform">
-                <span class="text-xs font-semibold text-white bg-emerald-500 px-3 py-1.5 rounded-full shadow-lg">Open photo</span>
+          <div class="p-0 overflow-hidden w-[280px] bg-white dark:bg-slate-900 rounded-3xl group/popup">
+            <div class="relative overflow-hidden aspect-[4/3] cursor-pointer" onclick="window.dispatchEvent(new CustomEvent('trek-open-gallery', {detail: '${p.id}'}))">
+              <img src="${p.url}" class="w-full h-full object-cover transition-transform duration-1000 group-hover/popup:scale-110" />
+              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover/popup:opacity-100 transition-opacity flex items-end p-4">
+                <span class="text-[9px] font-black text-white uppercase tracking-[0.2em] bg-emerald-500/80 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2">
+                  <Maximize2 size={10}/> Full Analysis
+                </span>
               </div>
             </div>
-            <div class="p-4">
-              <h4 class="text-sm font-semibold text-slate-900 dark:text-white mb-3 truncate">${safeName}</h4>
+            <div class="p-5 bg-white dark:bg-slate-900">
+              <h4 class="text-[13px] font-black text-slate-900 dark:text-white uppercase tracking-tight mb-3 truncate">${p.name}</h4>
               <div class="space-y-2.5">
-                <div class="flex items-center gap-3 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <span class="px-2 py-1 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-200 rounded-lg">#</span>
-                  Waypoint ${sequenceNumber} of ${validPhotos.length}
+                <div class="flex items-center gap-2.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
+                  <span class="p-1.5 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-200 rounded-lg"><MapPin size={10}/></span>
+                  Node ${sequenceNumber} of ${validPhotos.length}
                 </div>
-                <div class="flex items-center gap-3 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <span class="px-2 py-1 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 rounded-lg">m</span>
-                  Elevation <span class="text-slate-900 dark:text-slate-200 ml-1 font-semibold">${altitude}</span>
-                </div>
-                <div class="text-xs font-medium text-slate-400 dark:text-slate-500 pt-2 border-t border-slate-50 dark:border-slate-800">
-                  ${dateStr}
+                <div class="flex items-center gap-2.5 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
+                  <span class="p-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 rounded-lg"><Layers size={10}/></span>
+                  Altitude: <span class="text-slate-900 dark:text-slate-200 ml-1 font-black">${altitude}</span>
                 </div>
               </div>
             </div>
           </div>
-        `, { closeButton: false, offset: [0, -40] });
+        `, { closeButton: false, offset: [0, -38] });
           
         clusterGroupRef.current.addLayer(marker);
         markersRef.current[p.id] = marker;
       });
 
       if (points.length > 1) {
-        polylineRef.current = L.polyline(points, { 
-          color: '#10b981', 
-          weight: 4, 
-          opacity: 0.8, 
-          dashArray: '8, 12', 
+        // Glow effect layers
+        L.polyline(points, { 
+          color: activeLayer === 'dark' ? '#10b981' : '#059669', 
+          weight: 12, 
+          opacity: 0.1, 
           lineCap: 'round',
           lineJoin: 'round'
         }).addTo(mapRef.current);
+
+        polylineRef.current = L.polyline(points, { 
+          color: activeLayer === 'dark' ? '#10b981' : '#10b981', 
+          weight: 4, 
+          opacity: 0.8, 
+          dashArray: '8, 16', 
+          lineCap: 'round',
+          lineJoin: 'round',
+          className: 'trek-path-animated'
+        }).addTo(mapRef.current);
+
+        // Add CSS for animation if not present
+        if (!document.getElementById('trek-path-styles')) {
+          const style = document.createElement('style');
+          style.id = 'trek-path-styles';
+          style.innerHTML = `
+            @keyframes dash {
+              to {
+                stroke-dashoffset: -24;
+              }
+            }
+            .trek-path-animated {
+              animation: dash 1s linear infinite;
+            }
+          `;
+          document.head.appendChild(style);
+        }
       }
       fitAllBounds();
     }
@@ -253,7 +250,7 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
       const move = () => {
         mapRef.current.flyTo(marker.getLatLng(), Math.max(mapRef.current.getZoom(), 16), { 
           duration: 1.2,
-          easeLinearity: 0.25 
+          easeLinearity: 0.15 
         });
         mapRef.current.once('moveend', () => marker.openPopup());
       };
@@ -263,51 +260,49 @@ const Map: React.FC<MapProps> = ({ photos, activePhotoId, onPhotoSelect }) => {
   }, [activePhotoId]);
 
   return (
-    <div className="relative w-full h-full bg-slate-100 dark:bg-slate-950 group/map">
+    <div className="relative w-full h-full bg-slate-100 dark:bg-slate-950">
       <div ref={mapContainerRef} className="w-full h-full" />
       
-      <div className="absolute top-3 right-3 lg:top-6 lg:right-6 z-[10] flex flex-col items-end gap-2 pointer-events-none">
-        <div className="flex flex-wrap justify-end gap-2 pointer-events-auto">
+      <div className="absolute top-8 right-8 z-[10] flex flex-col items-end gap-3 pointer-events-none">
+        <div className="flex gap-3 pointer-events-auto">
           <button 
             onClick={fitAllBounds}
-            disabled={mappedCount === 0}
-            className="px-3 py-2.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl shadow-lg border border-white dark:border-slate-800 hover:bg-slate-900 dark:hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-semibold text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-slate-900 disabled:hover:text-slate-900 dark:disabled:hover:text-white group"
+            className="p-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-2xl shadow-xl border border-white dark:border-slate-800 hover:bg-emerald-500 dark:hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2.5 font-black text-[10px] uppercase tracking-widest"
           >
-            <Focus size={16} className="group-hover:rotate-180 transition-transform"/> View all
+            <Focus size={16}/> Re-Center
           </button>
           <button 
             onClick={() => setIsPlaying(!isPlaying)}
-            disabled={mappedCount === 0}
-            className={`px-3 py-2.5 rounded-xl shadow-lg border transition-all flex items-center gap-2 font-semibold text-xs disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`p-3.5 rounded-2xl shadow-xl border transition-all flex items-center gap-2.5 font-black text-[10px] uppercase tracking-widest ${
               isPlaying ? 'bg-rose-500 text-white border-rose-500 animate-pulse' : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-white dark:border-slate-800 hover:bg-emerald-500 hover:text-white'
             }`}
           >
             {isPlaying ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-            {isPlaying ? 'Stop' : 'Play'}
+            {isPlaying ? 'Abort' : 'Playback'}
           </button>
         </div>
 
-        <div className="relative flex flex-col items-end gap-2 pointer-events-auto">
-          <button onClick={() => setShowLayerMenu(!showLayerMenu)} className="px-3 py-2.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-xl shadow-lg border border-white dark:border-slate-800 font-semibold text-xs flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+        <div className="relative flex flex-col items-end gap-2.5 pointer-events-auto">
+          <button onClick={() => setShowLayerMenu(!showLayerMenu)} className="p-3.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-2xl shadow-xl border border-white dark:border-slate-800 font-black text-[10px] uppercase tracking-widest flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
             <Layers size={16} /> Layers
-            {showLayerMenu ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+            {showLayerMenu ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
           </button>
           
           {showLayerMenu && (
-            <div className="w-52 sm:w-56 p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-xl border border-white dark:border-slate-800 animate-in slide-in-from-top-3 duration-200">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3">Map view</p>
-              <div className="grid grid-cols-1 gap-2">
+            <div className="w-56 p-5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl rounded-[2rem] shadow-2xl border border-white dark:border-slate-800 animate-in slide-in-from-top-4 duration-300">
+              <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 px-2">Topology Presets</p>
+              <div className="grid grid-cols-1 gap-1.5">
                 {(['dark', 'standard', 'satellite', 'terrain'] as LayerType[]).map(type => (
                   <button 
                     key={type} 
                     onClick={() => { setActiveLayer(type); setShowLayerMenu(false); }} 
-                    className={`text-left px-4 py-3 rounded-xl text-xs font-semibold capitalize transition-all flex items-center justify-between ${
-                      activeLayer === type ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    className={`text-left px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-between ${
+                      activeLayer === type ? 'bg-emerald-600 text-white shadow-lg translate-x-1' : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
                     {type}
-                    {type === 'dark' && <Moon size={12}/>}
-                    {type === 'standard' && <Sun size={12}/>}
+                    {type === 'dark' && <Moon size={10}/>}
+                    {type === 'standard' && <Sun size={10}/>}
                   </button>
                 ))}
               </div>

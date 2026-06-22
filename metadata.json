@@ -1,4 +1,10 @@
 {
-  "name": "TrekTrack - Photo Route Journey",
-  "description": "Visualize trekking routes by extracting GPS metadata from uploaded photos, reviewing the route on an interactive map, and exporting GPX."
+  "name": "Expedition Director",
+  "description": "Professional expedition analysis platform. Extract precision telemetry from photo metadata, generate AI-driven tactical logs, and monitor physiological estimates.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

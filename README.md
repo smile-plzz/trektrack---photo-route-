@@ -1,32 +1,31 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Expedition Director
 
-# TrekTrack
+A professional-grade expedition analysis platform that transforms photo metadata into a comprehensive tactical mission report.
 
-TrekTrack maps a route from geotagged photos. Upload JPEG, HEIC, or other browser-supported image files and the app extracts EXIF GPS metadata, draws the route on a Leaflet map, shows elevation stats, opens a photo gallery, and exports GPX.
+## Core Features
 
-## What It Does
+-   **Telemetry HUD**: Extracts high-precision GPS, altitude, and timestamp data from photo EXIF metadata to reconstruct your route.
+-   **AI Tactical Log (Gemini)**: Generates a world-class Expedition Narrative, Tactical Advisories, and key technical milestones using the Gemini 1.5 Flash model.
+-   **Physiological Monitoring**: Estimates oxygen saturation (SpO2) and caloric expenditure based on altitude and terrain metrics.
+-   **Interactive Cartography**: Dynamic Leaflet maps with real-time photo-to-location mapping and an interactive elevation scrubber.
+-   **Anomaly Detection**: Automatically flags GPS "teleportation" or timestamp inconsistencies that suggest data corruption or high-speed displacement.
+-   **Mission Intel Sidebar**: Collapsible sidebar for streamlined data density and map-first visualization.
 
-- Upload photos by click or drag and drop
-- Convert HEIC/HEIF images for browser display
-- Extract GPS, time, and camera metadata from EXIF
-- Plot mapped photos on an interactive Leaflet map
-- Review a thumbnail list, stats panel, and elevation profile
-- Open a full-screen gallery with keyboard navigation
-- Export the mapped route as GPX
+## Technical Stack
 
-## Run Locally
+-   **Frontend**: React + Vite + Tailwind CSS
+-   **Mapping**: Leaflet + React-Leaflet
+-   **AI Integration**: @google/genai (Gemini 1.5 Flash) via Express backend
+-   **Persistence**: Local state with support for bulk photo uploads
+-   **Icons**: Lucide React
 
-**Prerequisites:** Node.js
+## Getting Started
 
-1. Install dependencies:
-   `npm install`
-2. Run the app:
-   `npm run dev`
+1.  Upload photos from your expedition (files must contain EXIF GPS metadata).
+2.  Review the **Telemetry HUD** for live distance, altitude, and pace metrics.
+3.  Click **Generate AI Report** to receive the Chief's Log and Tactical Insights.
+4.  Navigate the elevation profile to scrub through specific trail segments.
 
-## Notes
+---
 
-- The app is client-side only; there is no backend or persistence layer.
-- Photos without GPS data still import, but they are marked as `No GPS` and are excluded from map and GPX output.
-- Dark and light themes are supported in the UI.
+*Note: Physiological estimates are algorithmic approximations based on altitude and movement data and should not be used for medical purposes.*
